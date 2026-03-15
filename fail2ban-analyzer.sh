@@ -6,12 +6,11 @@ DB_CITY="$DB_DIR/GeoLite2-City.mmdb"
 DB_ASN="$DB_DIR/GeoLite2-ASN.mmdb"
 LOG_FILE="/var/log/fail2ban-analysis.log"
 
-# GitHub 原始链接 (指向 download 分支，确保获取最新版)
 URL_CITY="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb"
 URL_ASN="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-ASN.mmdb"
 # ==========================================
 
-# 数据库自动更新逻辑
+# 数据库自动更新
 update_db() {
     local needs_update=false
     # 如果文件不存在或修改时间超过 15 天则更新
@@ -23,7 +22,6 @@ update_db() {
 
     if [ "$needs_update" = true ]; then
         echo "[$(date)] 正在从 GitHub 更新 GeoLite2 数据库..."
-        # 使用 -N 选项，仅在服务器文件较旧时下载
         wget -q -O "$DB_CITY" "$URL_CITY"
         wget -q -O "$DB_ASN" "$URL_ASN"
         echo "[$(date)] 数据库更新完成。"
@@ -33,17 +31,17 @@ update_db() {
 run_analysis() {
     update_db
 
-    # 1. 动态获取所有 Jail (包含 recidive, sshd 等)
+    # 1. 动态获取所有 Jail
     JAILS=$(fail2ban-client status | grep "Jail list:" | sed 's/.*Jail list://; s/,//g')
     
     RAW_IPS=""
     for jail in $JAILS; do
-        # 提取并清理格式符号，确保只拿到纯 IP
+        # 提取并清理格式符号
         IPS=$(fail2ban-client status "$jail" | grep "Banned IP list:" | sed 's/.*Banned IP list://' | tr -d '|`-' | tr ' ' '\n')
         RAW_IPS="${RAW_IPS} ${IPS}"
     done
     
-    # 提取唯一的 IPv4 地址
+    # 提取 IPv4 地址
     ALL_IPS=$(echo "$RAW_IPS" | tr ' ' '\n' | grep -P '^(\d{1,3}\.){3}\d{1,3}$' | sort -u)
 
     if [ -z "$ALL_IPS" ]; then
@@ -62,19 +60,19 @@ $(printf "%-18s | %-12s | %-12s | %-12s | %-15s\n" "IP地址" "国家" "城市" 
     TOTAL_IPS=$(echo "$ALL_IPS" | wc -l)
     CURRENT=0
 
-    echo "正在开始分析 $TOTAL_IPS 个 IP 地址..."
+    echo "正在分析 $TOTAL_IPS 个 IP 地址..."
 
     for ip in $ALL_IPS; do
-        # --- 进度条逻辑 ---
+        # --- 进度条 ---
         ((CURRENT++))
         PERCENT=$(( CURRENT * 100 / TOTAL_IPS ))
-        # 生成进度条视觉效果 [#####     ]
+        # 生成进度条 [#####     ]
         BAR_WIDTH=30
         FILLED=$(( PERCENT * BAR_WIDTH / 100 ))
         EMPTY=$(( BAR_WIDTH - FILLED ))
         BAR=$(printf "%${FILLED}s" | tr ' ' '#')$(printf "%${EMPTY}s" | tr ' ' '-')
         
-        # 使用 \r 让输出回到行首，不换行显示实时进度
+        # 使用 \r 让输出回到行首
         printf "\r进度: [%s] %d%% (%d/%d) 正在查询: %-15s" "$BAR" "$PERCENT" "$CURRENT" "$TOTAL_IPS" "$ip"
 
         # --- 原有的查询逻辑 ---
@@ -82,7 +80,7 @@ $(printf "%-18s | %-12s | %-12s | %-12s | %-15s\n" "IP地址" "国家" "城市" 
         COUNTRY=$(mmdblookup --file "$DB_CITY" --ip "$ip" country names en 2>/dev/null | grep 'utf8_string' | head -n 1 | awk -F'"' '{print $2}')
         [ -z "$COUNTRY" ] && COUNTRY=$(mmdblookup --file "$DB_CITY" --ip "$ip" registered_country names en 2>/dev/null | grep 'utf8_string' | head -n 1 | awk -F'"' '{print $2}')
 
-        # 2. 获取城市 (带省份回退)
+        # 2. 获取城市
         CITY=$(mmdblookup --file "$DB_CITY" --ip "$ip" city names en 2>/dev/null | grep 'utf8_string' | head -n 1 | awk -F'"' '{print $2}')
         if [ -z "$CITY" ]; then
             CITY=$(mmdblookup --file "$DB_CITY" --ip "$ip" subdivisions 0 names en 2>/dev/null | grep 'utf8_string' | head -n 1 | awk -F'"' '{print $2}')
@@ -97,7 +95,7 @@ $(printf "%-18s | %-12s | %-12s | %-12s | %-15s\n" "IP地址" "国家" "城市" 
         CITY=${CITY:-"Unknown"}
         ISP_VAL=${ISP_VAL:-"Unknown"}
 
-        # 5. 写入报告变量 (不输出到屏幕，保持屏幕整洁)
+        # 5. 写入报告变量
         LINE=$(printf "%-18s | %-16s | %-20s | %-s" "$ip" "$COUNTRY" "$CITY" "$ISP_VAL")
         REPORT="${REPORT}\n${LINE}"
     done
