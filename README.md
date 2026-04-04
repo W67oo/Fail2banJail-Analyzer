@@ -11,7 +11,7 @@ It can preliminary analyze those IP which is banned by Fail2ban . It's output wi
 The IPs come from the jails of Fail2ban .
 
 * **License**  
-The databases from **[MaxMind's GeoLite2](https://dev.maxmind.com/geoip/geoip2/geolite2/)** .    
+The databases comes from **[MaxMind's GeoLite2](https://dev.maxmind.com/geoip/geoip2/geolite2/)** .    
 The script quote **[P3TERX](https://github.com/P3TERX/)**'s project--**[GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb)** as its database updating source .    
 Spacial thanks to **[P3TERX](https://github.com/P3TERX/)** .   
 [Creative Commons Corporation Attribution-ShareAlike 4.0 International License (the "Creative Commons License")](https://creativecommons.org/licenses/by-sa/4.0/)
